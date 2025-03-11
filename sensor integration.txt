@@ -9,9 +9,13 @@ int in3 = 13;   // IN3 pin (PA4) for Right Motor direction
 int in4 = 8;    // IN4 pin (PA5) for Right Motor direction
 
 // Ultrasonic Sensor Pins
-const int echo = 9, Trig = 10;  // Pin connections for HC-SR04
+const int frontTrig = 10, frontEcho = 9; // PA7, PA6 Front sensor
+const int leftTrig = 6, leftEcho = 7;// PE5  , PB4    // Left sensor
+const int rightTrig = 4, rightEcho = 5;// PB1, PE4   // Right sensor
 
-long duration, cm;  // To measure pulse width and distance in cm
+long durationFront, cmFront;
+long durationLeft, cmLeft;
+long durationRight, cmRight;
 
 void setup() {
     Serial.begin(115200); // Serial for debugging
@@ -25,87 +29,83 @@ void setup() {
     pinMode(in3, OUTPUT);
     pinMode(in4, OUTPUT);
 
-    // Set Ultrasonic pins
-    pinMode(Trig, OUTPUT);
-    pinMode(echo, INPUT);
+    // Set Ultrasonic sensor pins
+    pinMode(frontTrig, OUTPUT); pinMode(frontEcho, INPUT);
+    pinMode(leftTrig, OUTPUT); pinMode(leftEcho, INPUT);
+    pinMode(rightTrig, OUTPUT); pinMode(rightEcho, INPUT);
 
     // Start moving forward
     moveForward();
 }
 
 void loop() {
-    // Continuously check for obstacles
-    Update_Ultra_Sonic();
-    
-    if (cm <= 20 && cm > 0) {  // If an object is detected within 20 cm
-        stopMotors();}
-       // delay(500); // Short stop
-       //turnRight(); // Turn right
-       // delay(1000); // Allow time for turning
-      else{
+    // Update all ultrasonic sensor readings
+    cmFront = getUltrasonicDistance(frontTrig, frontEcho);
+    cmLeft = getUltrasonicDistance(leftTrig, leftEcho);
+    cmRight = getUltrasonicDistance(rightTrig, rightEcho);
 
-        moveForward(); // Continue moving forward
+    Serial.print("Front: "); Serial.print(cmFront);
+    Serial.print(" cm | Left: "); Serial.print(cmLeft);
+    Serial.print(" cm | Right: "); Serial.println(cmRight);
+
+    // Wall following logic
+    if (cmFront <= 20 && cmFront > 0) {  // Obstacle detected ahead
+        stopMotors();
+        turnRight();
+    } else if (cmLeft > cmRight + 5) { // Too far from left wall
+        turnLeft();
+    } else if (cmRight > cmLeft + 5) { // Too far from right wall
+        turnRight();
+    } else {
+        moveForward();
     }
+    delay(200);  // Small delay before checking again
+}
 
-   // delay(200);  // Small delay before checking again
+// Function to get distance from an ultrasonic sensor
+long getUltrasonicDistance(int trigPin, int echoPin) {
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(2);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
+    
+    long duration = pulseIn(echoPin, HIGH);
+    return (duration * 0.034) / 2;
 }
 
 // Function to move both motors forward
 void moveForward() {
     Serial.println("Moving Forward");
-
-    digitalWrite(in1, HIGH);
-    digitalWrite(in2, LOW);
-    analogWrite(enA, 191);  // 50% Duty Cycle
-
-    digitalWrite(in3, HIGH);
-    digitalWrite(in4, LOW);
-    analogWrite(enB, 71);  // 50% Duty Cycle
+    digitalWrite(in1, HIGH); digitalWrite(in2, LOW);
+    analogWrite(enA, 191);
+    digitalWrite(in3, HIGH); digitalWrite(in4, LOW);
+    analogWrite(enB, 71);
 }
 
 // Function to stop motors
 void stopMotors() {
     Serial.println("Stopping Motors");
-
-    digitalWrite(in1, LOW);
-    digitalWrite(in2, LOW);
+    digitalWrite(in1, LOW); digitalWrite(in2, LOW);
     analogWrite(enA, 0);
-
-    digitalWrite(in3, LOW);
-    digitalWrite(in4, LOW);
+    digitalWrite(in3, LOW); digitalWrite(in4, LOW);
     analogWrite(enB, 0);
 }
 
 // Function to turn right
 void turnRight() {
     Serial.println("Turning Right");
-
-    digitalWrite(in1, LOW);
-    digitalWrite(in2, HIGH);
-    analogWrite(enA, 100);  // Reverse Left Motor
-
-    digitalWrite(in3, HIGH);
-    digitalWrite(in4, LOW);
-    analogWrite(enB, 100);  // Keep Right Motor moving forward
+    digitalWrite(in1, LOW); digitalWrite(in2, HIGH);
+    analogWrite(enA, 100);
+    digitalWrite(in3, HIGH); digitalWrite(in4, LOW);
+    analogWrite(enB, 100);
 }
 
-// Function to update ultrasonic sensor reading
-void Update_Ultra_Sonic() {
-    digitalWrite(Trig, LOW);
-    delayMicroseconds(2);
-    digitalWrite(Trig, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(Trig, LOW);
-
-    duration = pulseIn(echo, HIGH);
-    cm = microsecondsToCentimeters(duration);
-
-    Serial.print("Distance: ");
-    Serial.print(cm);
-    Serial.println(" cm");
-}
-
-// Convert microseconds to centimeters
-long microsecondsToCentimeters(long microseconds) {
-    return (microseconds * 0.034) / 2; // Speed of sound conversion
+// Function to turn left
+void turnLeft() {
+    Serial.println("Turning Left");
+    digitalWrite(in1, HIGH); digitalWrite(in2, LOW);
+    analogWrite(enA, 100);
+    digitalWrite(in3, LOW); digitalWrite(in4, HIGH);
+    analogWrite(enB, 100);
 }
