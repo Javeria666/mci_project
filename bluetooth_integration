@@ -1,0 +1,102 @@
+#include <Servo.h>
+
+// Servo and RGB LED setup
+Servo myservo;
+const int servoPin = 26; // PD3
+const int red = 30, blue = 40, green = 39; // RGB LED Pins
+char received = ' '; // Character received via UART
+bool carRunning = false; // Flag to control car movement
+
+// Motor A (Left Motor) - TivaC and L298N connections
+int enA = 40, in1 = 12, in2 = 10;
+// Motor B (Right Motor) - TivaC and L298N connections
+int enB = 37, in3 = 13, in4 = 27;
+
+// Ultrasonic Sensor Pins
+const int frontTrig = 2, frontEcho = 24;
+const int leftTrig = 30, leftEcho = 4;
+const int rightTrig = 26, rightEcho = 19;
+
+long cmFront, cmLeft, cmRight;
+
+void setup() {
+    Serial.begin(9600);
+    
+    // Set pin modes
+    pinMode(red, OUTPUT); pinMode(green, OUTPUT); pinMode(blue, OUTPUT);
+    analogWrite(red, 0); analogWrite(green, 0); analogWrite(blue, 0);
+    myservo.attach(servoPin);
+    
+    pinMode(enA, OUTPUT); pinMode(in1, OUTPUT); pinMode(in2, OUTPUT);
+    pinMode(enB, OUTPUT); pinMode(in3, OUTPUT); pinMode(in4, OUTPUT);
+    
+    pinMode(frontTrig, OUTPUT); pinMode(frontEcho, INPUT);
+    pinMode(leftTrig, OUTPUT); pinMode(leftEcho, INPUT);
+    pinMode(rightTrig, OUTPUT); pinMode(rightEcho, INPUT);
+}
+
+void loop() {
+    if (Serial.available() > 0) {
+        received = Serial.read();
+        Serial.println(received);
+        processBluetooth(received);
+    }
+    
+    if (carRunning) {
+        cmFront = getUltrasonicDistance(frontTrig, frontEcho);
+        cmLeft = getUltrasonicDistance(leftTrig, leftEcho);
+        cmRight = getUltrasonicDistance(rightTrig, rightEcho);
+        Serial.print("Front: "); Serial.print(cmFront); Serial.print(" cm\t");
+        Serial.print("Left: "); Serial.print(cmLeft); Serial.print(" cm\t");
+        Serial.print("Right: "); Serial.print(cmRight); Serial.println(" cm");
+        
+        if (cmFront <= 20 || cmLeft <= 20 || cmRight <= 20) {
+            stopMotors();
+        } else {
+            moveForward();
+        }
+    } else {
+        stopMotors();
+    }
+    //delay(200);
+}
+
+void processBluetooth(char sign) {
+    switch (sign) {
+        case 'S': // Start car
+            carRunning = true;
+            myservo.write(90);
+            analogWrite(red, 0); analogWrite(green, 255); analogWrite(blue, 0);
+            break;
+        case 'N': // Stop car
+            carRunning = false;
+            myservo.write(45);
+            analogWrite(red, 255); analogWrite(green, 0); analogWrite(blue, 0);
+            break;
+        default: // No action
+            break;
+    }
+}
+
+long getUltrasonicDistance(int trigPin, int echoPin) {
+    digitalWrite(trigPin, LOW); delayMicroseconds(2);
+    digitalWrite(trigPin, HIGH); delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
+    return (pulseIn(echoPin, HIGH) * 0.034) / 2;
+}
+
+void moveForward() {
+    //Serial.println("Moving Forward");
+    digitalWrite(in1, HIGH); digitalWrite(in2, LOW);
+    analogWrite(enA, 191);
+    digitalWrite(in3, HIGH); digitalWrite(in4, LOW);
+    analogWrite(enB, 83);
+}
+
+void stopMotors() {
+    //Serial.println("Stopping Motors");
+    digitalWrite(in1, LOW); digitalWrite(in2, LOW);
+    analogWrite(enA, 0);
+    digitalWrite(in3, LOW); digitalWrite(in4, LOW);
+    analogWrite(enB, 0);
+}
